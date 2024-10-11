@@ -20,12 +20,10 @@ scheduler:
   module: dagster._core.scheduler
   class: DagsterDaemonScheduler
 
-run_coordinator:
-  module: dagster.core.run_coordinator
-  class: QueuedRunCoordinator
-  config:
-    tag_concurrency_limits:
-      - key: "db_write"
-        limit: 1
-      - key: "s3_snapshot"
-        limit: 1
+run_queue:
+  max_concurrent_runs: 1
+  tag_concurrency_limits:
+    - key: "partition"
+      limit: 1
+    - key: "dagster/backfill"
+      limit: 1

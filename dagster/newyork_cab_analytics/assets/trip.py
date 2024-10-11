@@ -7,7 +7,8 @@ from dagster import (
     RetryPolicy,
     Output,
     MetadataValue,
-    AssetIn
+    AssetIn,
+    multiprocess_executor
 )
 import pandas as pd
 from datetime import datetime, timedelta
@@ -19,19 +20,16 @@ from db_resource.db_resource import sqlite_resource
     retry_policy=RetryPolicy(max_retries=3, delay=5),
 )
 def download_trip(context) -> Output:
-    """Asset for download file monthly"""
+
     format_string = "%Y-%m-%d"
     date_object = datetime.strptime(context.partition_key, format_string)
     url = f"https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_{date_object.strftime('%Y-%m')}.parquet"
     context.log.info(f"URL : {url}")
 
     target_file = f"yellow_tripdata_{date_object}.parquet"
-
     download_file(context, url, target_file)
-
     data = pd.read_parquet(target_file)
 
-    # Setting up lineage
     context.metadata = {
         "source": MetadataValue.text(url),
         "description": MetadataValue.text(
@@ -54,8 +52,7 @@ def download_trip(context) -> Output:
     partitions_def=MonthlyPartitionsDefinition(start_date="2019-01-01"),
 )
 def clean_trip(context, downloaded_trip: pd.DataFrame) -> Output:
-    """Clean the downlaoded data"""
-    # Remove the invalid date from data from pickup and drop time
+
     format_string = "%Y-%m-%d"
     date_object = datetime.strptime(context.partition_key, format_string)
 
@@ -70,32 +67,22 @@ def clean_trip(context, downloaded_trip: pd.DataFrame) -> Output:
     ]
 
     cleaned_data.columns = cleaned_data.columns.str.lower()
-
-    # Remove the trip which have na or 0 and less than zero data
     cleaned_data = cleaned_data[cleaned_data["passenger_count"] > 0]
-
-    # Remove if trip time is 0 or negative
     cleaned_data = cleaned_data[
         (cleaned_data["tpep_dropoff_datetime"] - cleaned_data["tpep_pickup_datetime"])
         > timedelta(seconds=0)
     ]
 
-    # Remove the trip which have na or 0 and less than zero data
     cleaned_data = cleaned_data[cleaned_data["trip_distance"] > 0]
-
-    # Remove negative fare
     cleaned_data = cleaned_data[cleaned_data["fare_amount"] > 0]
 
-    # drop columns
-    cleaned_data = cleaned_data.drop(columns = ['ratecodeid', 'store_and_fwd_flag','pulocationid', 'dolocationid', 
-                                                'payment_type', 'extra', 'mta_tax', 'tip_amount', 'tolls_amount', 
-                                                'improvement_surcharge','congestion_surcharge', 'airport_fee'])
+    cleaned_data = cleaned_data.drop(columns=['ratecodeid', 'store_and_fwd_flag','pulocationid', 'dolocationid', 
+                                              'payment_type', 'extra', 'mta_tax', 'tip_amount', 'tolls_amount', 
+                                              'improvement_surcharge','congestion_surcharge', 'airport_fee'])
 
-    # rename columns
     cleaned_data = cleaned_data.rename(columns={'tpep_pickup_datetime':'pickup_time',
                                                 'tpep_dropoff_datetime':'dropoff_time'
                                                 })
-
     context.log.info(f"Processing {len(downloaded_trip)} rows of cleaned data.")
 
     return Output(
@@ -114,10 +101,9 @@ def clean_trip(context, downloaded_trip: pd.DataFrame) -> Output:
     partitions_def=MonthlyPartitionsDefinition(start_date="2019-01-01"),
 )
 def transform_data(context, clean_data: pd.DataFrame) -> Output:
-    """Clean the downlaoded data"""
-    clean_data["trip_duration_in_seconds"] = (
-        clean_data["dropoff_time"] - clean_data["pickup_time"]
-    ).dt.total_seconds()
+
+    clean_data["trip_duration_in_seconds"] = (clean_data["dropoff_time"] - clean_data["pickup_time"]).dt.total_seconds()
+    clean_data["trip_duration_in_minutes"] = clean_data["trip_duration_in_seconds"] / 60
     clean_data["average_speed_miles_per_second"] = clean_data["trip_distance"] / clean_data[
         "trip_duration_in_seconds"
     ]
@@ -134,61 +120,55 @@ def transform_data(context, clean_data: pd.DataFrame) -> Output:
     ins={"featured_data": AssetIn("transform_data")},
     partitions_def=MonthlyPartitionsDefinition(start_date="2019-01-01"),
 )
-def daily_aggregation(context, featured_data: pd.DataFrame) -> Output:
-    """Clean the downlaoded data"""
+def aggregate_data(context, featured_data: pd.DataFrame) -> Output:
 
-    featured_data.set_index("pickup_time", inplace=True)
+    featured_data["pickup_year"] = featured_data["pickup_time"].dt.year
+    featured_data["pickup_month"] = featured_data["pickup_time"].dt.month
+    featured_data["pickup_day"] = featured_data["pickup_time"].dt.day
+    featured_data["pickup_hour"] = featured_data["pickup_time"].dt.hour
 
-    daily_aggregation = (
-        featured_data.resample("D")
+    aggregated_data = (
+        featured_data.groupby(["pickup_year", "pickup_month", "pickup_day", "pickup_hour", "passenger_count"])
         .agg(
-            total_trips=("vendorid", "count"), average_fare=("fare_amount", "mean")
+            no_of_trips=("vendorid", "count"),
+            avg_fare_amount=("fare_amount", "mean"),
+            avg_total_amount=("total_amount", "mean"),
+            avg_trip_distance=("trip_distance", "mean"),
+            avg_speed_mps=("average_speed_miles_per_second", "mean"),
+            avg_trip_duration_minutes=("trip_duration_in_minutes", "mean"),
         )
         .reset_index()
     )
-    taxi_daily_aggregation = daily_aggregation.rename_axis("trip_date", axis=0)
 
     return Output(
-        value=taxi_daily_aggregation,  # Or some processed version of it
-        metadata={"description": MetadataValue.text("Aggregated Data on daily level")},
+        value=aggregated_data,  # Or some processed version of it
+        metadata={"description": MetadataValue.text("Data Aggregated on year, month, day, hour and passenger count level")},
     )
 
-# Dump clean data
 @asset(
-    ins={"featured_data": AssetIn("transform_data")},
-    partitions_def=MonthlyPartitionsDefinition(start_date="2019-01-01"),
-    required_resource_keys={"sqlite"}
-)
-def dump_transformed_data(context, featured_data: pd.DataFrame):
-    """Clean the downlaoded data"""
-    sqlite = context.resources.sqlite
-    featured_data.set_index('pickup_time', inplace=True)
-    sqlite.write_to_db(featured_data, "trips", 'append', True)
-
-# Dump Aggrgate data
-@asset(
-    deps=[dump_transformed_data],
-    ins={"aggrgated_data": AssetIn("daily_aggregation")},
+    ins={"aggrgated_data": AssetIn("aggregate_data")},
     partitions_def=MonthlyPartitionsDefinition(start_date="2019-01-01"),
     required_resource_keys={"sqlite"}
 )
 def dump_aggregated_data(context, aggrgated_data: pd.DataFrame):
     """Clean the downlaoded data"""
     sqlite = context.resources.sqlite
-    sqlite.write_to_db(aggrgated_data, "daily_aggregated_trips", 'append', True)
-
+    sqlite.write_to_db(aggrgated_data, "aggregated_trips", 'append', True)
 
 taxi_job = define_asset_job(
-    "taxi_trips",
-    selection=[download_trip, clean_trip, transform_data, daily_aggregation, dump_transformed_data, dump_aggregated_data],
-    #required_resource_keys={"sqlite"}
+    name="yellow_cab_trips",
+    selection=[download_trip, clean_trip, transform_data, aggregate_data, dump_aggregated_data],
+    executor_def=multiprocess_executor.configured({"max_concurrent": 1})
 )
 
-taxi_job_schedule = build_schedule_from_partitioned_job(taxi_job)
-
+taxi_job_schedule = build_schedule_from_partitioned_job(
+    taxi_job,
+    name="trip_download_schedule"
+    )
 
 defs = Definitions(
-    assets=[download_trip, clean_trip, transform_data, daily_aggregation, dump_transformed_data, dump_aggregated_data],
+    assets=[download_trip, clean_trip, transform_data, aggregate_data, dump_aggregated_data],
+    jobs=[taxi_job],
     schedules=[taxi_job_schedule],
     resources={'sqlite':sqlite_resource}
     )

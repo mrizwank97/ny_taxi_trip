@@ -16,7 +16,7 @@ services:
   metabase:
     image: metabase/metabase
     ports:
-      - "5000:3000"
+      - "6000:3000"
     volumes:
       - ./persistent_db:/persistent_db
   # frontend:
