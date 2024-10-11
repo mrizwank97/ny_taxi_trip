@@ -1,45 +1,20 @@
 services:
   dagster:
     build: dagster
-    # command: dagster-daemon run
     ports:
       - "3000:3000"
     environment:
-      # - DB_PATH=${DB_PATH}
-      # - MONGO_URL=${MONGO_URL}
-      # - MONGO_DATABASE=${MONGO_DATABASE}
       - SQLITE_STORAGE_BASE_DIR=/opt/dagster/sqlite/
       - SQLITE_DATABASE=/opt/dagster/app/persistent_db/ny_taxi.db
     volumes:
       - ./persistent_db:/opt/dagster/app/persistent_db
-      # - /Users/prashant/project/kaggle/remote_health/resources/:/opt/dagster/app/model_resources/
+      - ./persistent_db/dagster/:/opt/dagster/sqlite/
+
   metabase:
     image: metabase/metabase
     ports:
-      - "6000:3000"
+      - "5000:3000"
+    environment:
+      - MB_DB_FILE=/persistent_db/metabase.db
     volumes:
       - ./persistent_db:/persistent_db
-  # frontend:
-  #   container_name: medical_health_frontend
-  #   build:
-  #     context: medicalhealthform
-  #     dockerfile: Dockerfile
-  #   ports:
-  #     - 80:80
-  #   environment:
-  #     NODE_ENV: production
-  #     REACT_APP_API_URL: http://backend:8000
-  #   depends_on: 
-  #     - backend
-  # backend:
-  #   container_name: medical_health_backend
-  #   build:
-  #     context: medicalhealthbackend
-  #     dockerfile: Dockerfile
-  #   ports:
-  #     - 8000:8000
-  #   environment:
-  #     ENV: production
-  #     MONGODB_URL: ${MONGO_URL}
-
-    

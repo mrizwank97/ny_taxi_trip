@@ -1,4 +1,6 @@
 __MACOSX/
 test.ipynb
 yellow_tripdata_2023-02.parquet
-persistent_db/ny_taxi.db
+persistent_db/*
+backup.zip
+.DS_Store
