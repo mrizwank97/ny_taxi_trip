@@ -16,5 +16,9 @@ services:
       - "5000:3000"
     environment:
       - MB_DB_FILE=/persistent_db/metabase.db
+      - MB_SETUP_ADMIN_EMAIL=fake-admin@example.com  # Dummy admin email
+      - MB_SETUP_ADMIN_PASSWORD=fakepassword  # Dummy admin password
+      - MB_ANON_ACCESS_ENABLED=true  # Enable anonymous access
+      - MB_EMBEDS_ANON_ACCESS_TOKENS=true  # Allow anonymous access to public dashboards
     volumes:
       - ./persistent_db:/persistent_db

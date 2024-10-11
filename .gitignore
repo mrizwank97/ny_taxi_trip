@@ -1,9 +1,6 @@
 __MACOSX/
 test.ipynb
 yellow_tripdata_2023-02.parquet
-persistent_db/__MACOSX
-persistent_db/.DS_Store
-persistent_db/dagster
-persistent_db/metabase.db
+persistent_db/*
 backup.zip
 .DS_Store
