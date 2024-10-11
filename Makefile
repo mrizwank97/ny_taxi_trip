@@ -27,6 +27,6 @@ clean:
 .PHONY: all download unzip clean
 
 # call the docker down and zip the directory 'persistent_db' to backup.zip
-shutdown:
+stop:
 	docker compose down
 	zip -r backup.zip persistent_db
