@@ -3,4 +3,5 @@ test.ipynb
 yellow_tripdata_2023-02.parquet
 persistent_db/*
 backup.zip
+persistent_db.zip
 .DS_Store
