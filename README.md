@@ -25,9 +25,9 @@ This will do following:
 - For all subsequent times ```make start``` command can be used which only call ```docker compose up -d``` to setup Dagster and Metabase
 - For shutting down the services just run ```make stop``` command which runs ```docker compose down``` and create a zip file of the assets.
 
+**Access Dagster:** Once the setup is complete, visit ```http://localhost:3000``` to access the Dagster UI. From there, you can manually trigger jobs for any specific month
 
-3. **Access Dagster:** Once the setup is complete, visit ```http://localhost:3000``` to access the Dagster UI. From there, you can manually trigger jobs for any specific month
-4. **Access Metabase:** After the data is processed and stored, you can explore and visualize the results using Metabase. Navigate to ```http://localhost:5000``` to see the dashboard and run queries.
+**Access Metabase:** After the data is processed and stored, you can explore and visualize the results using Metabase. Navigate to ```http://localhost:5000``` to see the dashboard and run queries.
 
 ### Data Pipeline Workflow:
 - **Data Downloading:** The pipeline automatically downloads New York taxi data starting from January 2019.
@@ -41,5 +41,10 @@ This will do following:
 1. **Run the Data Pipeline:**
     - Access Dagster at ```http://localhost:3000```.
     - Start the job for any specific month by selecting the appropriate partition (monthly).
+
+![Alt text](img/dagster.png)
+
 2. **View the Dashboard:**
     - Visit ```http://localhost:5000``` to access the Metabase dashboard for visualizations.
+
+![Alt text](img/metabase.png)
