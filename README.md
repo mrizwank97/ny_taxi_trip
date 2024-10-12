@@ -18,14 +18,13 @@ The data is partitioned by month, starting from January 2019. Instead of storing
 - Docker is required for running both Dagster and Metabase
 
 ### Running Project
-1. **Download Data**: The pipeline is designed to automatically download the taxi trip data from a public Google Drive. Monthly partitions are used to split the data from January 2019 onwards.
-2. **Start the Pipeline:** Simply run the following command to start the process:
-```
-make
-```
+- Simply use ```make``` command when running it for the first time. This command will do following:
 This will do following:
-- Download the necessary assets.
-- Set up the Dagster and Metabase environments.
+    - Download the necessary assets from google drive and unzip it
+    - Set up the Dagster and Metabase environments by calling ```docker compose up -d```
+- For all subsequent times ```make start``` command can be used which only call ```docker compose up -d``` to setup Dagster and Metabase
+- For shutting down the services just run ```make stop``` command which runs ```docker compose down``` and create a zip file of the assets.
+
 
 3. **Access Dagster:** Once the setup is complete, visit ```http://localhost:3000``` to access the Dagster UI. From there, you can manually trigger jobs for any specific month
 4. **Access Metabase:** After the data is processed and stored, you can explore and visualize the results using Metabase. Navigate to ```http://localhost:5000``` to see the dashboard and run queries.
